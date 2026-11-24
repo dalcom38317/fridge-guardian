@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우리집 냉장고 지킴이</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Pretendard & Inter -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!-- Phosphor Icons (직관적인 UI 아이콘) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 커스텀 스크롤바 및 미세 애니메이션 */
+        body {
+            background-color: #f8fafc;
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(239, 68, 68, 0.8); }
+            50% { border-color: rgba(239, 68, 68, 0.3); }
+        }
+        .urgent-card {
+            animation: pulse-border 2.5s infinite;
+        }
+        @keyframes float-character {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-4px) rotate(2deg); }
+        }
+        .character-float {
+            animation: float-character 3s ease-in-out infinite;
+        }
+        @keyframes waddle-walk {
+            0%, 100% { transform: translateY(0px) rotate(-5deg); }
+            25% { transform: translateY(-4px) rotate(0deg); }
+            50% { transform: translateY(0px) rotate(5deg); }
+            75% { transform: translateY(-4px) rotate(0deg); }
+        }
+        .pengu-waddle {
+            animation: waddle-walk 0.65s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 1. 상단 영역 (Header) -->
+    <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 py-4 shadow-sm">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <!-- 좌측 로고 및 타이틀 -->
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md text-2xl">
+                    🧊
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                        우리집 냉장고 지킴이 <span class="text-lg">🥗</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 hidden sm:block">유통기한을 한눈에, 신선한 식재료 관리!</p>
+                </div>
+            </div>
+
+            <!-- 우측 임박 재료 알림 뱃지 -->
+            <div class="flex items-center gap-3">
+                <button onclick="filterUrgentOnly()" id="urgent-badge-btn" class="group flex items-center gap-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-3.5 py-2 rounded-full transition-all shadow-sm cursor-pointer" title="클릭하여 임박 재료만 보기">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span id="urgent-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600"></span>
+                    </span>
+                    <span class="text-xs sm:text-sm font-semibold">🚨 임박 재료</span>
+                    <span id="urgent-count" class="bg-rose-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨테이너 (왼쪽 사이드바 + 중앙 콘텐츠) -->
+    <div class="flex-1 max-w-7xl w-full mx-auto flex flex-col md:flex-row px-4 sm:px-8 py-6 gap-6 pb-28">
+        
+        <!-- 2. 왼쪽 영역 (Sidebar / Filter & Action) -->
+        <aside class="w-full md:w-64 shrink-0 flex flex-col gap-5">
+            <!-- 데스크톱 전용 '+ 재료 추가' 버튼 -->
+            <button onclick="openItemModal()" class="hidden md:flex w-full items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold py-3.5 px-5 rounded-2xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer">
+                <i class="ph-bold ph-plus text-lg"></i>
+                <span>새 재료 추가하기</span>
+            </button>
+
+            <!-- 카테고리 필터 영역 -->
+            <div class="bg-white rounded-2xl p-3 md:p-4 border border-slate-200 shadow-sm">
+                <h2 class="hidden md:block text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">📂 카테고리 필터</h2>
+                <nav id="category-filters" class="flex md:flex-col gap-1.5 overflow-x-auto no-scrollbar">
+                    <!-- JS로 필터 버튼 렌더링 -->
+                </nav>
+            </div>
+
+            <!-- 상태 범례 안내 (데스크톱) -->
+            <div class="hidden md:block bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-xs text-slate-600 space-y-2.5">
+                <h3 class="font-bold text-slate-800 mb-1">🚦 신선도 신호등 안내</h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm">🚨</span>
+                    <span><strong>긴급 (D-3 이내 / 지남)</strong>: 빠른 소비 필요</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm">⚠️</span>
+                    <span><strong>주의 (D-4 ~ D-7)</strong>: 이번 주 요리 추천</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm">🍀</span>
+                    <span><strong>여유 (D-8 이상)</strong>: 신선하게 보관 중</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 3. 중앙 영역 (Main Content - 식재료 카드 리스트) -->
+        <main class="flex-1 flex flex-col">
+            <!-- 귀여운 마스코트 캐릭터 말풍선 배너 -->
+            <section id="mascot-banner" onclick="speakRandomMascotMessage()" class="mb-5 bg-gradient-to-r from-emerald-50 via-teal-50/70 to-amber-50/60 border border-emerald-200/80 rounded-3xl p-4 sm:p-5 shadow-xs flex items-center gap-4 cursor-pointer hover:shadow-md transition-all group select-none" title="클릭하면 펭구가 다른 말을 건네요!">
+                <!-- 귀여운 냉장고 지킴이 펭구 SVG 일러스트 -->
+                <div id="mascot-avatar" class="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl bg-white border-2 border-emerald-200 shadow-sm flex items-center justify-center character-float group-hover:scale-105 transition-transform">
+                    <!-- JS로 상태별 표정 SVG 렌더링 -->
+                </div>
+
+                <!-- 말풍선 텍스트 영역 -->
+                <div class="flex-1 relative bg-white/95 rounded-2xl p-3.5 sm:p-4 border border-slate-100 shadow-xs">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <div class="flex items-center gap-1.5">
+                            <span id="mascot-badge" class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">🧊 냉장고 요정 펭구</span>
+                            <span id="mascot-mood-tag" class="text-[11px] font-semibold text-slate-400">실시간 브리핑</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 group-hover:text-emerald-600 transition-colors flex items-center gap-0.5">
+                            <i class="ph-bold ph-chat-circle-dots"></i> 톡! 눌러서 대화하기
+                        </span>
+                    </div>
+                    <p id="mascot-speech" class="text-sm sm:text-[15px] font-bold text-slate-800 leading-snug">
+                        안녕하세요! 오늘도 냉장고 속 신선함을 꼼꼼히 지키고 있어요 ✨
+                    </p>
+                </div>
+            </section>
+
+            <!-- 상단 요약 및 정렬 안내 바 -->
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div class="flex items-center gap-2">
+                    <h2 id="current-category-title" class="text-lg font-bold text-slate-800">전체 식재료</h2>
+                    <span id="filtered-count" class="text-xs font-semibold bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full">0개</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-slate-500">
+                    <i class="ph ph-sort-ascending text-base text-emerald-600"></i>
+                    <span>유통기한 임박순 자동 정렬됨</span>
+                    <button onclick="resetSampleData()" class="ml-2 underline hover:text-slate-800 cursor-pointer" title="초기 샘플 데이터로 되돌리기">샘플 초기화</button>
+                </div>
+            </div>
+
+            <!-- 식재료 카드 그리드 -->
+            <div id="ingredient-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- JS로 식재료 카드 렌더링 -->
+            </div>
+
+            <!-- 데이터 없음 안내 (Empty State) -->
+            <div id="empty-state" class="hidden flex-col items-center justify-center py-16 px-4 bg-white rounded-3xl border border-dashed border-slate-300 text-center">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-3xl mb-4">
+                    🛒
+                </div>
+                <h3 class="text-base font-bold text-slate-800 mb-1">등록된 식재료가 없어요</h3>
+                <p class="text-sm text-slate-500 mb-5">장을 보셨다면 냉장고 속 재료를 추가해 유통기한을 관리해보세요!</p>
+                <button onclick="openItemModal()" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all cursor-pointer">
+                    <i class="ph-bold ph-plus"></i>
+                    <span>첫 재료 등록하기</span>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- 하단 산책하는 펭구 영역 (Bottom Bar 바로 위를 좌우로 아장아장 이동) -->
+    <div id="walking-pengu-track" class="fixed bottom-[72px] inset-x-0 z-20 pointer-events-none h-24 overflow-visible">
+        <div id="walking-pengu-actor" onclick="interactWalkingPengu()" style="left: 12%;" class="absolute bottom-0 pointer-events-auto cursor-pointer flex flex-col items-center select-none group">
+            <!-- 미니 말풍선 -->
+            <div id="walking-pengu-bubble" class="mb-1 px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xs border border-emerald-200 shadow-md text-[11px] sm:text-xs font-bold text-slate-800 whitespace-nowrap transition-all duration-300 flex items-center gap-1">
+                <span>아장아장~ 순찰 중! 🧊</span>
+            </div>
+            <!-- 뒤뚱뒤뚱 걷는 펭구 몸체 -->
+            <div id="walking-pengu-sprite" class="pengu-waddle drop-shadow-md transition-transform duration-200 group-hover:scale-110">
+                <!-- JS로 SVG 렌더링 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 하단 영역 (Bottom Bar / CTA) -->
+    <div class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3.5 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <!-- 모바일용 '+ 재료 추가' 버튼 -->
+            <button onclick="openItemModal()" class="md:hidden flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-2xl shadow-sm transition-all cursor-pointer">
+                <i class="ph-bold ph-plus text-lg"></i>
+                <span>재료 추가</span>
+            </button>
+
+            <!-- 하단 핵심 CTA: '남은 재료로 요리하기' -->
+            <button onclick="openRecipeModal()" class="flex-[1.5] md:flex-initial md:ml-auto flex items-center justify-center gap-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-[0.99] text-white font-bold py-3.5 px-7 rounded-2xl shadow-lg shadow-orange-500/25 transition-all cursor-pointer">
+                <span class="text-xl">🍳</span>
+                <span>남은 재료로 요리하기</span>
+                <span class="hidden sm:inline-block bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">추천 레시피</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 모달 1: 식재료 추가 / 수정 모달             -->
+    <!-- ========================================== -->
+    <div id="item-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 transform transition-all my-auto">
+            <div class="flex items-center justify-between mb-5">
+                <h3 id="modal-title" class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                    <span>🧺</span> <span>새 식재료 등록</span>
+                </h3>
+                <button onclick="closeItemModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 cursor-pointer">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <form id="item-form" onsubmit="handleSaveItem(event)" class="space-y-4">
+                <input type="hidden" id="edit-item-id">
+
+                <!-- 재료명 입력 -->
+                <div>
+                    <label for="item-name" class="block text-sm font-bold text-slate-700 mb-1.5">식재료 이름 *</label>
+                    <input type="text" id="item-name" required oninput="autoSuggestVisuals(this.value)" placeholder="예: 서울우유 1L, 한돈 삼겹살, 양파" 
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-sm">
+                </div>
+
+                <!-- 이모티콘 선택 피커 -->
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">대표 이모티콘 선택</label>
+                    <input type="hidden" id="item-emoji" value="🥬">
+                    <div id="emoji-picker" class="grid grid-cols-8 gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                        <!-- JS로 이모지 버튼 렌더링 -->
+                    </div>
+                </div>
+
+                <!-- 카테고리 선택 -->
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">카테고리 *</label>
+                    <div class="grid grid-cols-4 gap-2" id="modal-category-options">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="category" value="채소" class="peer sr-only" checked>
+                            <div class="text-center py-2.5 px-2 rounded-xl border border-slate-200 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 text-xs font-bold transition-all">
+                                🥬 채소
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="category" value="육류" class="peer sr-only">
+                            <div class="text-center py-2.5 px-2 rounded-xl border border-slate-200 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 text-xs font-bold transition-all">
+                                🥩 육류
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="category" value="유제품" class="peer sr-only">
+                            <div class="text-center py-2.5 px-2 rounded-xl border border-slate-200 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 text-xs font-bold transition-all">
+                                🥛 유제품
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="category" value="기타" class="peer sr-only">
+                            <div class="text-center py-2.5 px-2 rounded-xl border border-slate-200 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 text-xs font-bold transition-all">
+                                📦 기타
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 유통기한 날짜 및 빠른 선택 버튼 -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="item-expiry" class="block text-sm font-bold text-slate-700">유통기한 (소비기한) *</label>
+                        <div class="flex gap-1">
+                            <button type="button" onclick="setQuickExpiry(3)" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium cursor-pointer">+3일</button>
+                            <button type="button" onclick="setQuickExpiry(7)" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium cursor-pointer">+1주</button>
+                            <button type="button" onclick="setQuickExpiry(14)" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-medium cursor-pointer">+2주</button>
+                        </div>
+                    </div>
+                    <input type="date" id="item-expiry" required 
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-sm">
+                </div>
+
+                <!-- 식재료 사진 URL (자동 매칭 또는 직접 입력) -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="item-image" class="block text-sm font-bold text-slate-700">식재료 사진 URL (자동 매칭)</label>
+                        <button type="button" onclick="refreshRandomFoodPhoto()" class="text-[11px] text-emerald-600 hover:underline font-semibold cursor-pointer">🔄 사진 자동추천</button>
+                    </div>
+                    <input type="url" id="item-image" placeholder="재료명을 입력하면 사진이 자동으로 연결됩니다" 
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-xs text-slate-600">
+                </div>
+
+                <!-- 수량/메모 (선택) -->
+                <div>
+                    <label for="item-memo" class="block text-sm font-bold text-slate-700 mb-1.5">수량 또는 보관 메모 (선택)</label>
+                    <input type="text" id="item-memo" placeholder="예: 냉장실 문쪽, 2개 남음" 
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-sm">
+                </div>
+
+                <!-- 제출 버튼 -->
+                <div class="pt-2 flex gap-2">
+                    <button type="button" onclick="closeItemModal()" class="flex-1 py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-all cursor-pointer">취소</button>
+                    <button type="submit" class="flex-[2] py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer">저장하기 ✨</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 모달 2: 남은 재료 기반 추천 레시피 모달     -->
+    <!-- ========================================== -->
+    <div id="recipe-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-3xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+            <!-- 모달 헤더 -->
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-sm text-2xl">
+                        👨‍🍳
+                    </div>
+                    <div>
+                        <h3 class="text-lg sm:text-xl font-extrabold text-slate-900">남은 재료 맞춤 레시피 추천</h3>
+                        <p class="text-xs text-slate-600">유통기한이 임박한 재료를 우선으로 추천합니다!</p>
+                    </div>
+                </div>
+                <button onclick="closeRecipeModal()" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 flex items-center justify-center text-slate-600 shadow-xs cursor-pointer">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <!-- 모달 본문 (스크롤 영역) -->
+            <div class="p-6 overflow-y-auto space-y-6 flex-1">
+                <!-- 현재 냉장고 임박 재료 요약 -->
+                <div>
+                    <div class="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
+                        <i class="ph-fill ph-warning-circle text-rose-500"></i>
+                        <span>우선 소비가 필요한 냉장고 재료:</span>
+                    </div>
+                    <div id="recipe-priority-ingredients" class="flex flex-wrap gap-1.5">
+                        <!-- JS로 임박 재료 뱃지 삽입 -->
+                    </div>
+                </div>
+
+                <!-- AI 맞춤 레시피 생성 버튼 영역 -->
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800">AI 셰프에게 우리집 냉장고 맞춤 레시피 물어보기</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">보유한 재료 조합으로 가장 맛있는 요리법을 즉석에서 만들어 드려요.</p>
+                    </div>
+                    <button id="ai-recipe-btn" onclick="generateAIRecipe()" class="shrink-0 inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer">
+                        <i class="ph-fill ph-sparkle text-amber-400"></i>
+                        <span>AI 레시피 생성</span>
+                    </button>
+                </div>
+
+                <!-- AI 생성 결과 컨테이너 -->
+                <div id="ai-recipe-result" class="hidden bg-amber-50/70 border border-amber-200 rounded-2xl p-5 text-sm text-slate-800 leading-relaxed">
+                </div>
+
+                <!-- 기본 매칭 추천 레시피 리스트 -->
+                <div>
+                    <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center justify-between">
+                        <span>보유 재료 매칭 추천 요리</span>
+                        <span class="text-xs font-normal text-slate-400">클릭 시 상세 레시피 검색 연결</span>
+                    </h4>
+                    <div id="matched-recipes-list" class="space-y-3">
+                        <!-- JS로 매칭 레시피 카드 렌더링 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 메시지 알림 (alert 대체) -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        // ==========================================
+        // 1. 상태 및 상수 정의
+        // ==========================================
+        const STORAGE_KEY = 'fridge_guardian_items_v2';
+        const CATEGORIES = [
+            { id: '전체', label: '전체 보기', emoji: '🧊' },
+            { id: '채소', label: '채소', emoji: '🥬' },
+            { id: '육류', label: '육류', emoji: '🥩' },
+            { id: '유제품', label: '유제품', emoji: '🥛' },
+            { id: '기타', label: '기타', emoji: '📦' }
+        ];
+
+        const EMOJI_OPTIONS = ['🥬', '🧅', '🥕', '🍅', '🥦', '🥩', '🍗', '🥓', '🥛', '🥚', '🧀', '🧈', '🧊', '🍎', '🐟', '🥟'];
+
+        // 식재료 키워드별 고화질 사진 및 추천 이모티콘 매핑 데이터
+        const VISUAL_PRESETS = [
+            { keywords: ['우유', '밀크'], emoji: '🥛', image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=600&q=80', category: '유제품' },
+            { keywords: ['삼겹살', '돼지', '고기', '목살'], emoji: '🥩', image: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=600&q=80', category: '육류' },
+            { keywords: ['소고기', '한우', '스테이크'], emoji: '🥩', image: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?auto=format&fit=crop&w=600&q=80', category: '육류' },
+            { keywords: ['닭', '치킨', '닭가슴살'], emoji: '🍗', image: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=600&q=80', category: '육류' },
+            { keywords: ['양파'], emoji: '🧅', image: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=600&q=80', category: '채소' },
+            { keywords: ['계란', '달걀', '특란'], emoji: '🥚', image: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=600&q=80', category: '유제품' },
+            { keywords: ['두부'], emoji: '🧊', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80', category: '기타' },
+            { keywords: ['토마토', '방울토마토'], emoji: '🍅', image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80', category: '채소' },
+            { keywords: ['당근'], emoji: '🥕', image: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=600&q=80', category: '채소' },
+            { keywords: ['치즈'], emoji: '🧀', image: 'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?auto=format&fit=crop&w=600&q=80', category: '유제품' },
+            { keywords: ['사과', '과일'], emoji: '🍎', image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80', category: '채소' },
+            { keywords: ['상추', '배추', '시금치', '채소', '야채', '애호박'], emoji: '🥬', image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80', category: '채소' }
+        ];
+
+        const CATEGORY_DEFAULT_IMAGES = {
+            '채소': 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+            '육류': 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=600&q=80',
+            '유제품': 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=600&q=80',
+            '기타': 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'
+        };
+
+        let ingredients = [];
+        let currentFilter = '전체'; // '전체', '채소', '육류', '유제품', '기타', '임박'
+
+        // 내장 기본 레시피 데이터베이스 (사진 및 이모지 포함)
+        const RECIPE_DB = [
+            {
+                title: '대패 삼겹살 양파 볶음',
+                emoji: '🥓',
+                image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80',
+                keywords: ['삼겹살', '돼지고기', '양파', '대파', '버섯', '채소'],
+                time: '15분',
+                difficulty: '초간단',
+                desc: '유통기한 임박한 고기와 자투리 채소를 한 번에 털어 넣기 좋은 밥도둑 볶음 요리입니다.'
+            },
+            {
+                title: '부드러운 우유 달걀찜',
+                emoji: '🍮',
+                image: 'https://images.unsplash.com/photo-1525351484163-7529414342d8?auto=format&fit=crop&w=400&q=80',
+                keywords: ['우유', '계란', '달걀', '치즈'],
+                time: '10분',
+                difficulty: '매우 쉬움',
+                desc: '남은 우유와 계란을 황금 비율로 섞어 아이들도 좋아하는 부드러운 한 끼 반찬을 만들어보세요.'
+            },
+            {
+                title: '냉장고 파먹기 채소 카레라이스',
+                emoji: '🍛',
+                image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=400&q=80',
+                keywords: ['양파', '감자', '당근', '돼지고기', '소고기', '닭고기', '애호박'],
+                time: '25분',
+                difficulty: '쉬움',
+                desc: '냉장고 속 자투리 채소와 고기를 깍둑썰기해 넣고 끓이면 든든한 일품 요리가 완성됩니다.'
+            },
+            {
+                title: '고소한 크림 파스타',
+                emoji: '🍝',
+                image: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=400&q=80',
+                keywords: ['우유', '생크림', '치즈', '베이컨', '삼겹살', '양파', '버섯', '마늘'],
+                time: '20분',
+                difficulty: '보통',
+                desc: '남은 유제품(우유, 치즈)을 가장 맛있고 빠르게 소비할 수 있는 레스토랑 스타일 요리입니다.'
+            },
+            {
+                title: '얼큰한 두부 애호박 된장찌개',
+                emoji: '🍲',
+                image: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=400&q=80',
+                keywords: ['두부', '애호박', '양파', '대파', '버섯', '고추'],
+                time: '20분',
+                difficulty: '쉬움',
+                desc: '채소 칸에 남은 재료들을 송송 썰어 넣고 구수하게 끓여내는 한국인의 대표 집밥 메뉴입니다.'
+            },
+            {
+                title: '간장 계란 버터밥 & 채소 비빔밥',
+                emoji: '🥗',
+                image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=400&q=80',
+                keywords: ['계란', '달걀', '상추', '시금치', '당근', '애호박', '버터'],
+                time: '10분',
+                difficulty: '초간단',
+                desc: '요리하기 귀찮을 때 남은 나물이나 채소, 계란 프라이만 얹어 쓱쓱 비벼 먹는 초스피드 한 그릇!'
+            }
+        ];
+
+        // ==========================================
+        // 2. 유틸리티 함수 (날짜 계산, 토스트 등)
+        // ==========================================
+        
+        // 오늘 날짜 기준 N일 후 YYYY-MM-DD 문자열 반환
+        function getDateOffsetStr(daysOffset) {
+            const date = new Date();
+            date.setDate(date.getDate() + daysOffset);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 유통기한까지 남은 일수(D-Day) 정확히 계산 (자정 기준)
+        function calculateDDay(expiryDateStr) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const [y, m, d] = expiryDateStr.split('-').map(Number);
+            const expiry = new Date(y, m - 1, d);
+            expiry.setHours(0, 0, 0, 0);
+
+            const diffTime = expiry - today;
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
+        }
+
+        // D-Day 숫자에 따른 표시 텍스트 및 스타일 반환
+        function getStatusConfig(diffDays) {
+            if (diffDays < 0) {
+                return {
+                    badgeText: `🚨 D+${Math.abs(diffDays)} 지남`,
+                    statusLabel: '위험',
+                    cardBorder: 'border-rose-500 border-2 urgent-card bg-rose-50/30',
+                    badgeClass: 'bg-rose-600 text-white shadow-sm',
+                    textClass: 'text-rose-700'
+                };
+            } else if (diffDays === 0) {
+                return {
+                    badgeText: '🔥 D-Day 오늘까지',
+                    statusLabel: '긴급',
+                    cardBorder: 'border-rose-500 border-2 urgent-card bg-rose-50/20',
+                    badgeClass: 'bg-rose-600 text-white shadow-sm',
+                    textClass: 'text-rose-600'
+                };
+            } else if (diffDays <= 3) {
+                return {
+                    badgeText: `⏰ D-${diffDays}`,
+                    statusLabel: '임박',
+                    cardBorder: 'border-rose-400 border-2 bg-rose-50/10',
+                    badgeClass: 'bg-rose-500 text-white shadow-sm',
+                    textClass: 'text-rose-600'
+                };
+            } else if (diffDays <= 7) {
+                return {
+                    badgeText: `⚠️ D-${diffDays}`,
+                    statusLabel: '주의',
+                    cardBorder: 'border-amber-300 border bg-amber-50/10',
+                    badgeClass: 'bg-amber-400 text-amber-950 font-extrabold shadow-sm',
+                    textClass: 'text-amber-700'
+                };
+            } else {
+                return {
+                    badgeText: `🍀 D-${diffDays}`,
+                    statusLabel: '여유',
+                    cardBorder: 'border-slate-200 border bg-white',
+                    badgeClass: 'bg-emerald-500 text-white shadow-sm',
+                    textClass: 'text-emerald-700'
+                };
+            }
+        }
+
+        // 카테고리별 아이콘 및 색상
+        function getCategoryStyle(category) {
+            switch (category) {
+                case '채소': return { emoji: '🥬', bg: 'bg-green-100 text-green-800' };
+                case '육류': return { emoji: '🥩', bg: 'bg-red-100 text-red-800' };
+                case '유제품': return { emoji: '🥛', bg: 'bg-sky-100 text-sky-800' };
+                default: return { emoji: '📦', bg: 'bg-slate-100 text-slate-700' };
+            }
+        }
+
+        // 커스텀 토스트 메시지
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-slate-900 text-white' : 'bg-rose-600 text-white';
+            const icon = type === 'success' ? 'ph-check-circle text-emerald-400' : 'ph-warning-circle text-white';
+            
+            toast.className = `${bgColor} px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2.5 text-sm font-medium transform transition-all duration-300 translate-y-0 opacity-100`;
+            toast.innerHTML = `<i class="ph-fill ${icon} text-lg"></i><span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        // ==========================================
+        // 3. 데이터 초기화 및 로컬 스토리지 연동
+        // ==========================================
+        function getDefaultSampleData() {
+            return [
+                {
+                    id: 'sample-1',
+                    name: '서울우유 1L',
+                    emoji: '🥛',
+                    category: '유제품',
+                    expiryDate: getDateOffsetStr(1), // D-1
+                    imageUrl: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=600&q=80',
+                    memo: '냉장고 문칸, 절반 정도 남음'
+                },
+                {
+                    id: 'sample-2',
+                    name: '국내산 한돈 삼겹살 (500g)',
+                    emoji: '🥩',
+                    category: '육류',
+                    expiryDate: getDateOffsetStr(2), // D-2
+                    imageUrl: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=600&q=80',
+                    memo: '오늘 저녁 구이 or 볶음용'
+                },
+                {
+                    id: 'sample-3',
+                    name: '손질 양파 3개입',
+                    emoji: '🧅',
+                    category: '채소',
+                    expiryDate: getDateOffsetStr(5), // D-5
+                    imageUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=600&q=80',
+                    memo: '야채칸 보관'
+                },
+                {
+                    id: 'sample-4',
+                    name: '무항생제 특란 15구',
+                    emoji: '🥚',
+                    category: '유제품',
+                    expiryDate: getDateOffsetStr(10), // D-10
+                    imageUrl: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=600&q=80',
+                    memo: '계란 트레이에 보관 중'
+                },
+                {
+                    id: 'sample-5',
+                    name: '국산 찌개용 두부 1모',
+                    emoji: '🧊',
+                    category: '기타',
+                    expiryDate: getDateOffsetStr(0), // D-Day
+                    imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+                    memo: '오늘 꼭 먹어야 함!'
+                }
+            ];
+        }
+
+        function loadData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    ingredients = JSON.parse(saved);
+                } else {
+                    ingredients = getDefaultSampleData();
+                    saveData();
+                }
+            } catch (e) {
+                console.error('데이터 로드 실패:', e);
+                ingredients = getDefaultSampleData();
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(ingredients));
+            } catch (e) {
+                console.error('데이터 저장 실패:', e);
+            }
+        }
+
+        function resetSampleData() {
+            ingredients = getDefaultSampleData();
+            saveData();
+            currentFilter = '전체';
+            renderApp();
+            showToast('초기 샘플 식재료 데이터로 복원되었습니다.');
+        }
+
+        // ==========================================
+        // 4. UI 렌더링 로직
+        // ==========================================
+        let customMascotQuoteIndex = 0;
+
+        function getMascotSVG(mood) {
+            // mood: 'urgent' (놀람/긴급), 'warn' (생각/주의), 'happy' (신남/신선)
+            if (mood === 'urgent') {
+                return `
+                <svg viewBox="0 0 100 100" class="w-14 h-14 sm:w-16 sm:h-16">
+                    <!-- 셰프 모자 -->
+                    <path d="M32 24 C28 14, 42 10, 50 14 C58 10, 72 14, 68 24 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="2.5"/>
+                    <rect x="35" y="21" width="30" height="6" rx="2" fill="#f43f5e"/>
+                    <!-- 몸통 -->
+                    <ellipse cx="50" cy="60" rx="32" ry="33" fill="#334155"/>
+                    <ellipse cx="50" cy="64" rx="22" ry="24" fill="#ffffff"/>
+                    <!-- 놀란 눈 -->
+                    <circle cx="39" cy="48" r="5.5" fill="#ffffff"/>
+                    <circle cx="39" cy="48" r="2.5" fill="#0f172a"/>
+                    <circle cx="61" cy="48" r="5.5" fill="#ffffff"/>
+                    <circle cx="61" cy="48" r="2.5" fill="#0f172a"/>
+                    <!-- 땀방울 -->
+                    <path d="M76 34 C76 34, 81 41, 76 44 C71 41, 76 34, 76 34 Z" fill="#38bdf8"/>
+                    <!-- 부리 (놀란 O 입) -->
+                    <ellipse cx="50" cy="57" rx="5.5" ry="4.5" fill="#fb923c" stroke="#ea580c" stroke-width="1.5"/>
+                    <!-- 발 -->
+                    <ellipse cx="38" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                    <ellipse cx="62" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                </svg>`;
+            } else if (mood === 'warn') {
+                return `
+                <svg viewBox="0 0 100 100" class="w-14 h-14 sm:w-16 sm:h-16">
+                    <!-- 셰프 모자 -->
+                    <path d="M32 24 C28 14, 42 10, 50 14 C58 10, 72 14, 68 24 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="2.5"/>
+                    <rect x="35" y="21" width="30" height="6" rx="2" fill="#f59e0b"/>
+                    <!-- 몸통 -->
+                    <ellipse cx="50" cy="60" rx="32" ry="33" fill="#334155"/>
+                    <ellipse cx="50" cy="64" rx="22" ry="24" fill="#ffffff"/>
+                    <!-- 초롱초롱 눈 -->
+                    <circle cx="39" cy="48" r="4.5" fill="#0f172a"/>
+                    <circle cx="40.5" cy="46.5" r="1.5" fill="#ffffff"/>
+                    <circle cx="61" cy="48" r="4.5" fill="#0f172a"/>
+                    <circle cx="62.5" cy="46.5" r="1.5" fill="#ffffff"/>
+                    <!-- 볼터치 -->
+                    <ellipse cx="31" cy="54" rx="4" ry="2.5" fill="#fda4af" opacity="0.8"/>
+                    <ellipse cx="69" cy="54" rx="4" ry="2.5" fill="#fda4af" opacity="0.8"/>
+                    <!-- 미소 부리 -->
+                    <path d="M44 55 Q50 61 56 55 Q50 52 44 55 Z" fill="#fb923c"/>
+                    <!-- 발 -->
+                    <ellipse cx="38" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                    <ellipse cx="62" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                </svg>`;
+            } else {
+                return `
+                <svg viewBox="0 0 100 100" class="w-14 h-14 sm:w-16 sm:h-16">
+                    <!-- 셰프 모자 -->
+                    <path d="M32 24 C28 14, 42 10, 50 14 C58 10, 72 14, 68 24 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="2.5"/>
+                    <rect x="35" y="21" width="30" height="6" rx="2" fill="#10b981"/>
+                    <!-- 몸통 -->
+                    <ellipse cx="50" cy="60" rx="32" ry="33" fill="#334155"/>
+                    <ellipse cx="50" cy="64" rx="22" ry="24" fill="#ffffff"/>
+                    <!-- 반달 웃음 눈 -->
+                    <path d="M34 49 Q39 43 44 49" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M56 49 Q61 43 66 49" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
+                    <!-- 볼터치 -->
+                    <ellipse cx="31" cy="54" rx="4.5" ry="2.5" fill="#fb7185" opacity="0.85"/>
+                    <ellipse cx="69" cy="54" rx="4.5" ry="2.5" fill="#fb7185" opacity="0.85"/>
+                    <!-- 활짝 웃는 부리 -->
+                    <path d="M43 54 Q50 63 57 54 Z" fill="#fb923c"/>
+                    <!-- 반짝이 -->
+                    <text x="74" y="36" font-size="12">✨</text>
+                    <!-- 발 -->
+                    <ellipse cx="38" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                    <ellipse cx="62" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                </svg>`;
+            }
+        }
+
+        function getMascotDialogues() {
+            const sorted = [...ingredients].sort((a, b) => calculateDDay(a.expiryDate) - calculateDDay(b.expiryDate));
+            const urgentItems = sorted.filter(i => calculateDDay(i.expiryDate) <= 3);
+            const warnItems = sorted.filter(i => {
+                const d = calculateDDay(i.expiryDate);
+                return d > 3 && d <= 7;
+            });
+
+            if (sorted.length === 0) {
+                return {
+                    mood: 'happy',
+                    badgeClass: 'bg-emerald-100 text-emerald-800',
+                    moodTag: '텅 빈 냉장고',
+                    messages: [
+                        '냉장고가 아주 깨끗하게 비워졌네요! 장을 보셨다면 아래에서 재료를 등록해 주세요 🛒',
+                        '음식물 쓰레기 제로 달성! 오늘도 알뜰하고 건강한 하루 보내세요 ✨'
+                    ]
+                };
+            }
+
+            if (urgentItems.length > 0) {
+                const top = urgentItems[0];
+                const d = calculateDDay(top.expiryDate);
+                const dText = d < 0 ? `기한이 ${Math.abs(d)}일 지났어요!` : (d === 0 ? '오늘이 유통기한 마지막 날이에요!' : `유통기한이 ${d}일밖에 안 남았어요!`);
+                return {
+                    mood: 'urgent',
+                    badgeClass: 'bg-rose-100 text-rose-800',
+                    moodTag: `🚨 긴급 알림 (${urgentItems.length}개 임박)`,
+                    messages: [
+                        `어머나! '${top.name}' ${dText} 오늘 요리 재료로 먼저 구출해 주세요! 🍳`,
+                        `임박한 재료가 ${urgentItems.length}개 있어요! 아래 '남은 재료로 요리하기' 버튼을 눌러볼까요? 🔥`,
+                        `상하기 전에 맛있게 냠냠! '${top.name}'부터 챙겨 드시면 식비도 아끼고 환경도 지켜요 🌱`
+                    ]
+                };
+            }
+
+            if (warnItems.length > 0) {
+                const top = warnItems[0];
+                return {
+                    mood: 'warn',
+                    badgeClass: 'bg-amber-100 text-amber-800',
+                    moodTag: '⚠️ 이번 주 소비 추천',
+                    messages: [
+                        `이번 주 안에는 '${top.name}' 요리를 해 먹는 건 어때요? 제가 레시피도 추천해 드릴게요! 👨‍🍳`,
+                        `현재 총 ${sorted.length}개의 식재료가 잘 보관되고 있어요. 중간중간 유통기한을 확인해 주세요 👀`
+                    ]
+                };
+            }
+
+            return {
+                mood: 'happy',
+                badgeClass: 'bg-emerald-100 text-emerald-800',
+                moodTag: '🍀 최상의 신선도',
+                messages: [
+                    `우와~ 냉장고 속 ${sorted.length}개 재료가 모두 신선해요! 관리 실력이 정말 최고예요 💖`,
+                    `버려지는 재료 하나 없이 완벽하게 관리 중이시네요! 오늘도 맛있는 집밥 드세요 🍚`,
+                    `장을 본 직후 바로 유통기한을 기록해 두시면 냉장고 파먹기가 훨씬 쉬워져요! ✨`
+                ]
+            };
+        }
+
+        function renderMascotBanner() {
+            const avatarEl = document.getElementById('mascot-avatar');
+            const badgeEl = document.getElementById('mascot-badge');
+            const moodTagEl = document.getElementById('mascot-mood-tag');
+            const speechEl = document.getElementById('mascot-speech');
+
+            const data = getMascotDialogues();
+            avatarEl.innerHTML = getMascotSVG(data.mood);
+            badgeEl.className = `text-[11px] font-extrabold px-2 py-0.5 rounded-full ${data.badgeClass}`;
+            moodTagEl.textContent = data.moodTag;
+            speechEl.textContent = data.messages[customMascotQuoteIndex % data.messages.length];
+        }
+
+        function speakRandomMascotMessage() {
+            customMascotQuoteIndex++;
+            renderMascotBanner();
+            const avatarEl = document.getElementById('mascot-avatar');
+            avatarEl.classList.remove('scale-110');
+            void avatarEl.offsetWidth;
+            avatarEl.classList.add('scale-110');
+            setTimeout(() => avatarEl.classList.remove('scale-110'), 200);
+        }
+
+        // ==========================================
+        // 4-1. 하단 산책하는 펭구 애니메이션 로직
+        // ==========================================
+        let penguPos = 12; // % 위치
+        let penguDir = 1;  // 1: 오른쪽, -1: 왼쪽
+        let penguPaused = false;
+        let penguWalkTimer = null;
+
+        function getWalkingPenguSVG(mood, dir) {
+            const flipTransform = dir === -1 ? 'scale(-1, 1)' : 'scale(1, 1)';
+            const hatColor = mood === 'urgent' ? '#f43f5e' : (mood === 'warn' ? '#f59e0b' : '#10b981');
+            return `
+            <svg viewBox="0 0 100 100" class="w-12 h-12 sm:w-14 sm:h-14" style="transform: ${flipTransform}; transform-origin: center;">
+                <!-- 셰프 모자 -->
+                <path d="M32 24 C28 14, 42 10, 50 14 C58 10, 72 14, 68 24 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="2.5"/>
+                <rect x="35" y="21" width="30" height="6" rx="2" fill="${hatColor}"/>
+                <!-- 몸통 -->
+                <ellipse cx="50" cy="60" rx="30" ry="32" fill="#334155"/>
+                <ellipse cx="53" cy="64" rx="20" ry="23" fill="#ffffff"/>
+                <!-- 날개 (흔들리는 팔) -->
+                <ellipse cx="32" cy="62" rx="7" ry="15" transform="rotate(15 32 62)" fill="#1e293b"/>
+                <!-- 측면 눈 -->
+                <circle cx="62" cy="47" r="4.5" fill="#0f172a"/>
+                <circle cx="63.5" cy="45.5" r="1.5" fill="#ffffff"/>
+                <!-- 볼터치 -->
+                <ellipse cx="56" cy="54" rx="4" ry="2.5" fill="#fb7185" opacity="0.85"/>
+                <!-- 옆모습 부리 -->
+                <path d="M72 50 L84 54 L72 58 Z" fill="#fb923c" stroke="#ea580c" stroke-width="1"/>
+                <!-- 발 -->
+                <ellipse cx="42" cy="91" rx="8" ry="4" fill="#fb923c"/>
+                <ellipse cx="60" cy="91" rx="8" ry="4" fill="#fb923c"/>
+            </svg>`;
+        }
+
+        function updateWalkingPenguVisual() {
+            const spriteEl = document.getElementById('walking-pengu-sprite');
+            const bubbleEl = document.getElementById('walking-pengu-bubble');
+            if (!spriteEl || !bubbleEl) return;
+
+            const data = getMascotDialogues();
+            spriteEl.innerHTML = getWalkingPenguSVG(data.mood, penguDir);
+
+            const shortQuotes = data.mood === 'urgent'
+                ? ['🚨 임박 재료 구출하러 가자!', '🔥 오늘까지 먹을 재료 확인!', '🍳 맛있게 요리해 볼까요?']
+                : (data.mood === 'warn'
+                    ? ['⚠️ 이번 주 식단 계획 중~', '👀 유통기한 꼼꼼히 체크!', '🥗 신선하게 보관 중이에요']
+                    : ['아장아장~ 순찰 중! 🧊', '🍀 오늘도 신선도 100점!', '✨ 톡 누르면 인사해요!']);
+
+            bubbleEl.innerHTML = `<span>${shortQuotes[Math.floor(Math.random() * shortQuotes.length)]}</span>`;
+        }
+
+        function startWalkingPengu() {
+            if (penguWalkTimer) clearInterval(penguWalkTimer);
+            updateWalkingPenguVisual();
+
+            penguWalkTimer = setInterval(() => {
+                if (penguPaused) return;
+
+                const actorEl = document.getElementById('walking-pengu-actor');
+                const spriteEl = document.getElementById('walking-pengu-sprite');
+                if (!actorEl || !spriteEl) return;
+
+                penguPos += penguDir * 0.22;
+
+                // 화면 양끝(6% ~ 78%) 도달 시 방향 전환
+                if (penguPos >= 76) {
+                    penguPos = 76;
+                    penguDir = -1;
+                    updateWalkingPenguVisual();
+                } else if (penguPos <= 6) {
+                    penguPos = 6;
+                    penguDir = 1;
+                    updateWalkingPenguVisual();
+                }
+
+                actorEl.style.left = `${penguPos}%`;
+            }, 35);
+        }
+
+        function interactWalkingPengu() {
+            const bubbleEl = document.getElementById('walking-pengu-bubble');
+            const spriteEl = document.getElementById('walking-pengu-sprite');
+            if (!bubbleEl || !spriteEl) return;
+
+            penguPaused = true;
+            spriteEl.classList.remove('pengu-waddle');
+            spriteEl.classList.add('animate-bounce');
+
+            const funReactions = [
+                '꽥! 간지러워요~ 🐧💕',
+                '오늘 저녁 메뉴 고민되시나요? 🍳',
+                '제가 냉장고 꽉 지키고 있을게요! 💪',
+                '상한 재료 제로! 함께 실천해요 🌱',
+                '우측 아래 버튼으로 레시피 봐요! 👉'
+            ];
+            const randomMsg = funReactions[Math.floor(Math.random() * funReactions.length)];
+            bubbleEl.innerHTML = `<span class="text-emerald-700">${randomMsg}</span>`;
+
+            setTimeout(() => {
+                penguPaused = false;
+                spriteEl.classList.remove('animate-bounce');
+                spriteEl.classList.add('pengu-waddle');
+                updateWalkingPenguVisual();
+            }, 2400);
+        }
+
+        function renderApp() {
+            renderHeaderUrgentCount();
+            renderCategoryFilters();
+            renderMascotBanner();
+            updateWalkingPenguVisual();
+            renderIngredientList();
+        }
+
+        // 상단 헤더 임박 재료(D-3 이내) 뱃지 업데이트
+        function renderHeaderUrgentCount() {
+            const urgentItems = ingredients.filter(item => calculateDDay(item.expiryDate) <= 3);
+            const countEl = document.getElementById('urgent-count');
+            const pingEl = document.getElementById('urgent-ping');
+            
+            countEl.textContent = `${urgentItems.length}개`;
+            if (urgentItems.length === 0) {
+                pingEl.classList.add('hidden');
+            } else {
+                pingEl.classList.remove('hidden');
+            }
+        }
+
+        // 왼쪽 사이드바 카테고리 필터 렌더링
+        function renderCategoryFilters() {
+            const nav = document.getElementById('category-filters');
+            nav.innerHTML = '';
+
+            CATEGORIES.forEach(cat => {
+                const count = cat.id === '전체' 
+                    ? ingredients.length 
+                    : ingredients.filter(i => i.category === cat.id).length;
+                
+                const isActive = currentFilter === cat.id;
+                const btnClass = isActive
+                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                    : 'bg-transparent hover:bg-slate-100 text-slate-600 font-medium';
+                const badgeClass = isActive
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 text-slate-500';
+
+                const btn = document.createElement('button');
+                btn.onclick = () => {
+                    currentFilter = cat.id;
+                    renderApp();
+                };
+                btn.className = `shrink-0 flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${btnClass}`;
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">${cat.emoji}</span>
+                        <span>${cat.label}</span>
+                    </div>
+                    <span class="text-xs px-2 py-0.5 rounded-full ${badgeClass}">${count}</span>
+                `;
+                nav.appendChild(btn);
+            });
+        }
+
+        // 임박 재료만 보기 토글
+        function filterUrgentOnly() {
+            currentFilter = currentFilter === '임박' ? '전체' : '임박';
+            renderApp();
+            if (currentFilter === '임박') {
+                showToast('유통기한 임박(D-3 이내) 재료만 필터링합니다.');
+            }
+        }
+
+        // 중앙 식재료 카드 리스트 렌더링 (임박순 정렬)
+        function renderIngredientList() {
+            const grid = document.getElementById('ingredient-grid');
+            const emptyState = document.getElementById('empty-state');
+            const titleEl = document.getElementById('current-category-title');
+            const countEl = document.getElementById('filtered-count');
+
+            // 1. 필터링
+            let filtered = [...ingredients];
+            if (currentFilter === '임박') {
+                filtered = filtered.filter(item => calculateDDay(item.expiryDate) <= 3);
+                titleEl.textContent = '🚨 유통기한 임박 재료 (D-3 이내)';
+            } else if (currentFilter !== '전체') {
+                filtered = filtered.filter(item => item.category === currentFilter);
+                titleEl.textContent = `${currentFilter} 식재료`;
+            } else {
+                titleEl.textContent = '전체 식재료';
+            }
+
+            // 2. 핵심 요구사항: 유통기한 임박한 순서(D-Day 오름차순) 자동 정렬
+            filtered.sort((a, b) => calculateDDay(a.expiryDate) - calculateDDay(b.expiryDate));
+
+            countEl.textContent = `${filtered.length}개`;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                grid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+            grid.classList.remove('hidden');
+
+            grid.innerHTML = filtered.map(item => {
+                const dDay = calculateDDay(item.expiryDate);
+                const status = getStatusConfig(dDay);
+                const catStyle = getCategoryStyle(item.category);
+                const displayEmoji = item.emoji || catStyle.emoji;
+                const fallbackImg = CATEGORY_DEFAULT_IMAGES[item.category] || CATEGORY_DEFAULT_IMAGES['기타'];
+                const imgSrc = item.imageUrl || fallbackImg;
+
+                return `
+                <article class="rounded-2xl overflow-hidden transition-all hover:shadow-lg flex flex-col justify-between ${status.cardBorder}">
+                    <div>
+                        <!-- 상단 식재료 사진 썸네일 & 오버레이 뱃지 -->
+                        <div class="relative h-36 w-full bg-slate-100 overflow-hidden group">
+                            <img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(item.name)}" 
+                                onerror="this.onerror=null; this.src='https://placehold.co/600x360/f1f5f9/64748b?text=${encodeURIComponent(item.name)}';"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/15"></div>
+                            
+                            <!-- 좌상단 카테고리 뱃지 -->
+                            <span class="absolute top-3 left-3 inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg backdrop-blur-md bg-white/90 text-slate-800 shadow-xs">
+                                <span>${catStyle.emoji}</span>
+                                <span>${item.category}</span>
+                            </span>
+
+                            <!-- 우상단 D-Day 경고 뱃지 -->
+                            <span class="absolute top-3 right-3 text-xs font-extrabold px-3 py-1 rounded-full ${status.badgeClass}">
+                                ${status.badgeText}
+                            </span>
+
+                            <!-- 좌하단 이모티콘 플로팅 아바타 -->
+                            <div class="absolute -bottom-0.5 left-4 w-11 h-11 rounded-2xl bg-white shadow-md border border-slate-100 flex items-center justify-center text-2xl">
+                                ${displayEmoji}
+                            </div>
+                        </div>
+
+                        <!-- 중단: 식재료 이름 및 메모 -->
+                        <div class="px-4 sm:px-5 pt-3 pb-2">
+                            <h3 class="text-lg font-extrabold text-slate-900 mb-1 line-clamp-1">${escapeHtml(item.name)}</h3>
+                            <p class="text-xs text-slate-500 min-h-[1rem] line-clamp-1">
+                                ${item.memo ? `📝 ${escapeHtml(item.memo)}` : '등록된 메모 없음'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 하단: 유통기한 날짜 및 소비/수정 액션 버튼 -->
+                    <div class="px-4 sm:px-5 pb-4 pt-2.5 mt-1 border-t border-slate-100 flex items-center justify-between">
+                        <div class="text-xs text-slate-500 flex items-center gap-1 font-medium">
+                            <span>📅</span>
+                            <span>~ ${item.expiryDate}</span>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="openItemModal('${item.id}')" class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer" title="수정">
+                                <i class="ph-bold ph-pencil-simple text-base"></i>
+                            </button>
+                            <button onclick="consumeItem('${item.id}')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white text-xs font-bold transition-all cursor-pointer" title="소비 완료 (목록에서 제거)">
+                                <span>😋</span>
+                                <span>소비완료</span>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==========================================
+        // 5. 식재료 추가 / 수정 / 삭제 핸들러
+        // ==========================================
+        function renderEmojiPicker(selectedEmoji = '🥬') {
+            const picker = document.getElementById('emoji-picker');
+            const hiddenInput = document.getElementById('item-emoji');
+            hiddenInput.value = selectedEmoji;
+
+            picker.innerHTML = EMOJI_OPTIONS.map(emoji => {
+                const isSelected = emoji === selectedEmoji;
+                const activeClass = isSelected 
+                    ? 'bg-emerald-100 border-emerald-500 scale-110 shadow-xs' 
+                    : 'bg-white border-transparent hover:bg-slate-100';
+                return `
+                    <button type="button" onclick="selectEmoji('${emoji}')" 
+                        class="h-9 rounded-lg border flex items-center justify-center text-lg transition-all cursor-pointer ${activeClass}">
+                        ${emoji}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function selectEmoji(emoji) {
+            renderEmojiPicker(emoji);
+        }
+
+        // 재료명 입력 시 어울리는 이모티콘, 카테고리, 사진 자동 매칭
+        function autoSuggestVisuals(name) {
+            if (!name) return;
+            const matched = VISUAL_PRESETS.find(preset => 
+                preset.keywords.some(kw => name.includes(kw))
+            );
+            if (matched) {
+                selectEmoji(matched.emoji);
+                document.getElementById('item-image').value = matched.image;
+                const radio = document.querySelector(`input[name="category"][value="${matched.category}"]`);
+                if (radio) radio.checked = true;
+            }
+        }
+
+        function refreshRandomFoodPhoto() {
+            const category = document.querySelector('input[name="category"]:checked')?.value || '기타';
+            const name = document.getElementById('item-name').value.trim();
+            const matched = VISUAL_PRESETS.find(p => p.keywords.some(kw => name.includes(kw)));
+            const url = matched ? matched.image : (CATEGORY_DEFAULT_IMAGES[category] || CATEGORY_DEFAULT_IMAGES['기타']);
+            document.getElementById('item-image').value = url;
+            showToast('어울리는 식재료 사진이 연결되었습니다! 📸');
+        }
+
+        function openItemModal(editId = null) {
+            const modal = document.getElementById('item-modal');
+            const title = document.getElementById('modal-title');
+            const form = document.getElementById('item-form');
+            const idInput = document.getElementById('edit-item-id');
+            const nameInput = document.getElementById('item-name');
+            const expiryInput = document.getElementById('item-expiry');
+            const imageInput = document.getElementById('item-image');
+            const memoInput = document.getElementById('item-memo');
+
+            form.reset();
+
+            if (editId) {
+                const target = ingredients.find(i => i.id === editId);
+                if (target) {
+                    title.innerHTML = `<span>✏️</span> <span>식재료 정보 수정</span>`;
+                    idInput.value = target.id;
+                    nameInput.value = target.name;
+                    expiryInput.value = target.expiryDate;
+                    imageInput.value = target.imageUrl || '';
+                    memoInput.value = target.memo || '';
+                    renderEmojiPicker(target.emoji || '🥬');
+                    const radio = document.querySelector(`input[name="category"][value="${target.category}"]`);
+                    if (radio) radio.checked = true;
+                }
+            } else {
+                title.innerHTML = `<span>🧺</span> <span>새 식재료 등록</span>`;
+                idInput.value = '';
+                expiryInput.value = getDateOffsetStr(5);
+                imageInput.value = '';
+                renderEmojiPicker('🥬');
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => nameInput.focus(), 100);
+        }
+
+        function closeItemModal() {
+            const modal = document.getElementById('item-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function setQuickExpiry(days) {
+            document.getElementById('item-expiry').value = getDateOffsetStr(days);
+        }
+
+        function handleSaveItem(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-item-id').value;
+            const name = document.getElementById('item-name').value.trim();
+            const emoji = document.getElementById('item-emoji').value || '🥬';
+            const category = document.querySelector('input[name="category"]:checked').value;
+            const expiryDate = document.getElementById('item-expiry').value;
+            let imageUrl = document.getElementById('item-image').value.trim();
+            const memo = document.getElementById('item-memo').value.trim();
+
+            if (!name || !expiryDate) return;
+
+            // 이미지 URL이 비어있다면 카테고리 기본 사진 자동 연결
+            if (!imageUrl) {
+                const matched = VISUAL_PRESETS.find(p => p.keywords.some(kw => name.includes(kw)));
+                imageUrl = matched ? matched.image : (CATEGORY_DEFAULT_IMAGES[category] || CATEGORY_DEFAULT_IMAGES['기타']);
+            }
+
+            if (id) {
+                // 수정
+                const idx = ingredients.findIndex(i => i.id === id);
+                if (idx !== -1) {
+                    ingredients[idx] = { ...ingredients[idx], name, emoji, category, expiryDate, imageUrl, memo };
+                    showToast(`'${name}' 정보가 수정되었습니다! ✨`);
+                }
+            } else {
+                // 신규 추가
+                const newItem = {
+                    id: 'item-' + Date.now(),
+                    name,
+                    emoji,
+                    category,
+                    expiryDate,
+                    imageUrl,
+                    memo
+                };
+                ingredients.push(newItem);
+                showToast(`${emoji} '${name}' 재료가 냉장고에 등록되었습니다!`);
+            }
+
+            saveData();
+            closeItemModal();
+            renderApp();
+        }
+
+        function consumeItem(id) {
+            const target = ingredients.find(i => i.id === id);
+            if (!target) return;
+
+            ingredients = ingredients.filter(i => i.id !== id);
+            saveData();
+            renderApp();
+            showToast(`'${target.name}' 소비 완료! 음식물 낭비를 막았어요 🎉`);
+        }
+
+        // ==========================================
+        // 6. 남은 재료 기반 레시피 추천 및 AI 연동
+        // ==========================================
+        function openRecipeModal() {
+            const modal = document.getElementById('recipe-modal');
+            const priorityContainer = document.getElementById('recipe-priority-ingredients');
+            const listContainer = document.getElementById('matched-recipes-list');
+            const aiResultBox = document.getElementById('ai-recipe-result');
+
+            // 이전 AI 결과 초기화
+            aiResultBox.classList.add('hidden');
+            aiResultBox.innerHTML = '';
+
+            // 유통기한 임박순 정렬된 전체 재료
+            const sortedItems = [...ingredients].sort((a, b) => calculateDDay(a.expiryDate) - calculateDDay(b.expiryDate));
+
+            // 상단 임박 재료 뱃지 표시
+            if (sortedItems.length === 0) {
+                priorityContainer.innerHTML = `<span class="text-xs text-slate-400">현재 냉장고에 등록된 재료가 없습니다.</span>`;
+            } else {
+                priorityContainer.innerHTML = sortedItems.slice(0, 6).map(item => {
+                    const dDay = calculateDDay(item.expiryDate);
+                    const isUrgent = dDay <= 3;
+                    const badgeStyle = isUrgent 
+                        ? 'bg-rose-100 text-rose-800 border-rose-200 font-bold' 
+                        : 'bg-slate-100 text-slate-700 border-slate-200';
+                    const dText = dDay < 0 ? `D+${Math.abs(dDay)}` : (dDay === 0 ? 'D-Day' : `D-${dDay}`);
+                    const itemEmoji = item.emoji || '🥗';
+                    return `<span class="text-xs px-2.5 py-1 rounded-full border ${badgeStyle}">${itemEmoji} ${escapeHtml(item.name)} (${dText})</span>`;
+                }).join('');
+            }
+
+            // 보유 재료와 매칭되는 레시피 점수 계산
+            const scoredRecipes = RECIPE_DB.map(recipe => {
+                const matchedNames = [];
+                sortedItems.forEach(item => {
+                    const isMatch = recipe.keywords.some(kw => 
+                        item.name.includes(kw) || item.category.includes(kw)
+                    );
+                    if (isMatch) {
+                        matchedNames.push(item.name);
+                    }
+                });
+                return { ...recipe, matchedNames };
+            }).sort((a, b) => b.matchedNames.length - a.matchedNames.length);
+
+            listContainer.innerHTML = scoredRecipes.map(recipe => {
+                const searchQuery = encodeURIComponent(`${recipe.title} 황금레시피`);
+                const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
+                
+                const matchedBadge = recipe.matchedNames.length > 0
+                    ? `<span class="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">보유 재료 활용: ${recipe.matchedNames.slice(0, 3).join(', ')}</span>`
+                    : `<span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">기본 추천 요리</span>`;
+
+                return `
+                <div class="p-3.5 rounded-2xl border border-slate-200 hover:border-orange-300 bg-white transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                    <div class="flex items-start sm:items-center gap-3.5">
+                        <div class="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-slate-100">
+                            <img src="${recipe.image}" alt="${recipe.title}" 
+                                onerror="this.onerror=null; this.src='https://placehold.co/200x200/fff7ed/ea580c?text=${encodeURIComponent(recipe.emoji)}';"
+                                class="w-full h-full object-cover">
+                            <span class="absolute bottom-1 right-1 bg-white/90 rounded-md px-1 text-sm shadow-xs">${recipe.emoji}</span>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <h5 class="font-bold text-slate-900 text-base">${recipe.title}</h5>
+                                ${matchedBadge}
+                            </div>
+                            <p class="text-xs text-slate-600 leading-relaxed line-clamp-2">${recipe.desc}</p>
+                            <div class="flex items-center gap-3 text-[11px] text-slate-400 pt-0.5">
+                                <span>⏱️ 조리시간: ${recipe.time}</span>
+                                <span>📊 난이도: ${recipe.difficulty}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="${youtubeUrl}" target="_blank" rel="noopener noreferrer" 
+                        class="shrink-0 inline-flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-xs transition-all">
+                        <i class="ph-fill ph-youtube-logo text-base"></i>
+                        <span>유튜브 영상 보기</span>
+                    </a>
+                </div>
+                `;
+            }).join('');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeRecipeModal() {
+            const modal = document.getElementById('recipe-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Gemini API를 활용한 실시간 맞춤 레시피 생성
+        async function generateAIRecipe() {
+            const btn = document.getElementById('ai-recipe-btn');
+            const resultBox = document.getElementById('ai-recipe-result');
+
+            if (ingredients.length === 0) {
+                showToast('먼저 냉장고에 재료를 1개 이상 등록해 주세요!', 'error');
+                return;
+            }
+
+            // 임박순 정렬된 재료 목록 텍스트 생성
+            const sortedItems = [...ingredients].sort((a, b) => calculateDDay(a.expiryDate) - calculateDDay(b.expiryDate));
+            const ingredientSummary = sortedItems.map(i => {
+                const d = calculateDDay(i.expiryDate);
+                return `${i.name}(${d <= 0 ? '오늘까지/임박' : `D-${d}`})`;
+            }).join(', ');
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="ph ph-spinner animate-spin text-amber-400"></i><span>레시피 생성 중...</span>`;
+            resultBox.classList.remove('hidden');
+            resultBox.innerHTML = `<div class="flex items-center gap-2 text-amber-800 font-medium"><i class="ph ph-sparkle animate-pulse"></i> 냉장고 속 임박 재료를 분석하여 최적의 집밥 레시피를 만들고 있습니다...</div>`;
+
+            const systemPrompt = "당신은 한국의 실력 있는 가정식 요리 연구가입니다. 사용자의 냉장고 속 식재료 목록(특히 유통기한이 임박한 재료)을 바탕으로, 집에서 누구나 15~20분 내에 쉽게 만들 수 있는 맛있는 요리 1가지를 추천해 주세요. 요리 이름, 활용된 냉장고 재료, 간단한 조리 순서(3~4단계)를 깔끔하게 정리해 주세요. 마크다운 기호(** 등)는 최소화하고 읽기 쉽게 줄바꿈을 사용해 주세요.";
+            const userQuery = `현재 우리집 냉장고 재료 목록(임박순): ${ingredientSummary}. 이 재료들을 최대한 활용해서 만들 수 있는 추천 레시피 1가지를 알려줘.`;
+
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                // 지수 백오프 재시도 적용
+                let response;
+                const delays = [1000, 2000, 4000];
+                for (let attempt = 0; attempt <= delays.length; attempt++) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (response.ok) break;
+                    } catch (err) {
+                        if (attempt === delays.length) throw err;
+                    }
+                    if (attempt < delays.length) {
+                        await new Promise(r => setTimeout(r, delays[attempt]));
+                    }
+                }
+
+                if (!response || !response.ok) throw new Error('API 응답 오류');
+
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                    const formattedText = escapeHtml(text).replace(/\n/g, '<br>');
+                    // 첫 줄(요리명 추정)을 추출해 유튜브 검색 쿼리 생성
+                    const firstLine = text.split('\n').find(line => line.trim().length > 0) || sortedItems[0]?.name || '집밥 레시피';
+                    const cleanTitle = firstLine.replace(/[*#:[\]()]/g, '').replace(/요리\s*이름|추천\s*요리/g, '').trim();
+                    const aiYoutubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanTitle + ' 레시피')}`;
+
+                    resultBox.innerHTML = `
+                        <div class="flex items-center justify-between gap-2 font-extrabold text-amber-900 mb-2 pb-2 border-b border-amber-200/80">
+                            <div class="flex items-center gap-2">
+                                <i class="ph-fill ph-sparkle text-orange-500"></i>
+                                <span>AI 셰프의 냉장고 파먹기 특급 레시피</span>
+                            </div>
+                        </div>
+                        <div class="text-slate-800 space-y-1 mb-3">${formattedText}</div>
+                        <div class="pt-2 border-t border-amber-200/60 flex justify-end">
+                            <a href="${aiYoutubeUrl}" target="_blank" rel="noopener noreferrer"
+                                class="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all">
+                                <i class="ph-fill ph-youtube-logo text-base"></i>
+                                <span>유튜브에서 이 요리 영상 찾기</span>
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    throw new Error('생성된 텍스트가 없습니다.');
+                }
+            } catch (error) {
+                // API 호출 실패 시 보유 임박 재료 기반 스마트 폴백 레시피 제공
+                const topIngredient = sortedItems[0]?.name || '냉장고 재료';
+                const fallbackYoutubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(topIngredient + ' 요리 레시피')}`;
+                resultBox.innerHTML = `
+                    <div class="font-bold text-amber-900 mb-1">🍳 추천 요리: '${escapeHtml(topIngredient)}' 활용 초간단 덮밥/볶음</div>
+                    <p class="text-xs text-slate-700 leading-relaxed mb-3">
+                        1. 유통기한이 가장 임박한 <strong>${escapeHtml(topIngredient)}</strong>와 냉장고 속 자투리 채소를 먹기 좋은 크기로 썰어주세요.<br>
+                        2. 팬에 식용유와 다진 마늘을 볶아 향을 낸 뒤 재료를 넣고 센 불에서 빠르게 볶습니다.<br>
+                        3. 간장 1.5큰술, 굴소스 1큰술, 설탕 0.5큰술을 넣고 볶아 따뜻한 밥 위에 얹으면 완성!
+                    </p>
+                    <div class="flex justify-end">
+                        <a href="${fallbackYoutubeUrl}" target="_blank" rel="noopener noreferrer"
+                            class="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all">
+                            <i class="ph-fill ph-youtube-logo text-base"></i>
+                            <span>유튜브에서 '${escapeHtml(topIngredient)}' 레시피 보기</span>
+                        </a>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="ph-fill ph-sparkle text-amber-400"></i><span>다시 추천받기</span>`;
+            }
+        }
+
+        // ==========================================
+        // 7. 초기 실행
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            renderApp();
+            startWalkingPengu();
+        });
+    </script>
+</body>
+</html>
